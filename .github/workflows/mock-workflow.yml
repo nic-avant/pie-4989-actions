@@ -1,0 +1,46 @@
+name: "Mock Workflow"
+
+on:
+  workflow_dispatch:
+    inputs:
+      should_fail:
+        description: "Simulate failure?"
+        required: true
+        default: 'false'
+        type: boolean
+
+jobs:
+  initial-test:
+    runs-on: ubuntu-latest
+    outputs:
+      test_status: ${{ steps.set-result.outputs.result }}
+      timestamp: ${{ steps.set-result.outputs.timestamp }}
+    steps:
+      - id: set-result
+        run: |
+          if [ "${{ github.event.inputs.should_fail }}" = "true" ]; then
+            echo "result=failed" >> $GITHUB_OUTPUT
+            echo "timestamp=$(date -u)" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "result=passed" >> $GITHUB_OUTPUT
+            echo "timestamp=$(date -u)" >> $GITHUB_OUTPUT
+          fi
+
+  on-success:
+    needs: initial-test
+    if: ${{ needs.initial-test.outputs.test_status == 'passed' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "Success path triggered!"
+          echo "Test passed at ${{ needs.initial-test.outputs.timestamp }}"
+
+  on-failure:
+    needs: initial-test
+    if: ${{ failure() && needs.initial-test.result == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "Failure path triggered!"
+          echo "Test failed at ${{ needs.initial-test.outputs.timestamp }}"
