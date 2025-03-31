@@ -1,0 +1,161 @@
+name: "Release Hotfix"
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_sha:
+        description: "Commit SHA to release"
+        required: true
+
+jobs:
+  trigger-release:
+    runs-on: ubuntu-latest
+    environment: prd
+    steps:
+
+      - name: Check if user can deploy
+        uses: TheModdingInquisition/actions-team-membership@v1.0
+        with:
+          organization: ${{ github.repository_owner }}
+          team: 'avant-basic-eng-approvers'
+          token: ${{ secrets.GITHUB_TOKEN }}
+          exit: true
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ssh-key: ${{ secrets.AVANTBOT_SSH_KEY }}
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.git_sha }}
+
+      - name: Fetch here
+        run: git config --global advice.detachedHead false && git fetch --all --tags
+
+      - name: Get deployed commit from tag
+        id: deployed
+        run: |
+          tag_sha=$(git rev-list -n 1 deployed)
+          echo "sha=$tag_sha" >> $GITHUB_OUTPUT
+
+      - name: Check commit count
+        run: |
+          echo "==============================================================="
+          echo "                    HOTFIX COMMIT CHECK                         "
+          echo "==============================================================="
+          
+          commit_count=$(git rev-list --count HEAD ^${{ steps.deployed.outputs.sha }})
+          
+          echo "Comparing against deployed SHA: ${{ steps.deployed.outputs.sha }}"
+          echo "Number of commits ahead: $commit_count"
+          echo ""
+          
+          if [ "$commit_count" -ne 1 ]; then
+            echo "❌ Error: Invalid commit count"
+            echo "Found $commit_count commits (expected: 1)"
+            echo ""
+            echo "Next steps:"
+            echo "0. Ensure locally you have an updated 'deployed' tag by"
+            echo "   running 'git fetch --tags -f'. The `-f` will be required if locally"
+            echo "   the 'deployed' tag is out of date"
+            echo "1. Identify where your hotfix branch was cut from"
+            echo "2. If not cut from the deployed SHA (${{ steps.deployed.outputs.sha }}):"
+            echo "   a. Create a new branch from the deployed SHA:"
+            echo "      git checkout ${{ steps.deployed.outputs.sha }}"
+            echo "      git checkout -b hotfix/your-branch-name"
+            echo "   b. Cherry-pick your hotfix changes onto this new branch"
+            echo "   c. Squash into a single commit"
+            echo "3. If already cut from deployed SHA:"
+            echo "   a. git rebase -i ${{ steps.deployed.outputs.sha }}"
+            echo "   b. Squash all commits into one"
+            echo "4. git push -f"
+            echo "5. Run this workflow again"
+            echo "==============================================================="
+            exit 1
+          fi
+          echo "✅ Valid commit count: 1 commit ahead of deployed SHA"
+          echo "==============================================================="
+      - name: Validate Hotfix PR
+        env: 
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "==============================================================="
+          echo "                    HOTFIX PR VALIDATION                        "
+          echo "==============================================================="
+          
+          # Convert the short SHA (if provided) to a full 40-character SHA
+          long_sha=$(git rev-parse "${{ github.event.inputs.git_sha }}") || {
+            echo "❌ Error: Invalid commit SHA"
+            echo "Input SHA: '${{ github.event.inputs.git_sha }}'"
+            echo "This SHA could not be found in the repository."
+            echo "Please verify you're using a valid commit SHA."
+            echo "==============================================================="
+            exit 1
+          }
+          echo "✅ Valid commit SHA detected: $long_sha"
+          
+          # Get PR data and validate
+          pr_data=$(gh pr list --state open --base main --json number,headRefName,headRefOid)
+          heads=$(echo "$pr_data" | jq -r '.[].headRefOid')
+          
+          echo "Checking for open PR to main branch..."
+          echo "Looking for commit: $long_sha"
+          
+          found_match="false"
+          for commit in $heads; do
+            if [ "$commit" = "$long_sha" ]; then
+              found_match="true"
+              break
+            fi
+          done
+          
+          if [ "$found_match" = "false" ]; then
+            echo "❌ Error: Missing Pull Request"
+            echo "This commit ($long_sha) is not associated with any open PR to main."
+            echo ""
+            echo "Next steps:"
+            echo "1. Create a PR from your hotfix branch targeting main"
+            echo "2. Wait for PR approvals"
+            echo "3. Run this workflow again"
+            echo "==============================================================="
+            exit 1
+          fi
+          echo "✅ Found matching commit in open PR to main branch"
+          echo "==============================================================="
+          
+          # Validate that the PR has a label "hotfix"
+          if [ "$found_match" = "true" ]; then
+            echo "Checking for 'hotfix' label..."
+            
+            pr_number=$(echo "$pr_data" | jq -r --arg sha "$long_sha" '.[] | select(.headRefOid == $sha) | .number')
+            pr_labels=$(gh pr view $pr_number --json labels | jq -r '.labels[].name')
+            
+            if [[ $pr_labels == *"hotfix"* ]]; then
+              echo "✅ Found 'hotfix' label on PR #$pr_number"
+            else
+              echo "❌ Error: Missing 'hotfix' label"
+              echo "PR #$pr_number does not have the 'hotfix' label."
+              echo ""
+              echo "Next steps:"
+              echo "1. Add the 'hotfix' label to PR #$pr_number"
+              echo "2. Run this workflow again"
+              echo "==============================================================="
+              exit 1
+            fi
+          fi
+
+      - name: Push deployment tag
+        uses: avantfinco/central_ci/actions/push-deployment-tags@main
+        with:
+          git_sha: ${{ github.event.inputs.git_sha }}
+          tag: to-deploy
+          ssh_key: ${{ secrets.AVANTBOT_SSH_KEY }}
+
+      - name: Trigger release workflow
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: release.yml
+          inputs: |
+            {
+              "hotfix_release": true,
+            }
+      

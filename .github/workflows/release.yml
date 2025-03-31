@@ -1,0 +1,124 @@
+name: release workflow
+
+on:
+  # no longer run release on every PR to main, instead just on schedule
+  # push:
+  #     branches:
+  #         main
+  workflow_dispatch:
+    inputs:
+      hotfix_release:
+        description: "Use the hotfix workflow"
+        required: true
+        type: boolean
+        default: false
+  # schedule:
+  #   # Monday-Thursday at 10 AM CST (16:00 UTC)
+  #   - cron: "0 16 * * 1-4"
+  #   # Monday-Thursday at 2 PM CST (20:00 UTC)
+  #   - cron: "0 20 * * 1-4"
+  #   # Friday at 10 AM CST (16:00 UTC)
+  #   - cron: "0 16 * * 5"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  check-for-open-hotfixes:
+    # Skip this job if this is a hotfix release
+    if: ${{ !inputs.hotfix_release }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ssh-key: ${{ secrets.AVANTBOT_SSH_KEY }}
+      - name: Check for open hotfix PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "==============================================================="
+          echo "              CHECKING FOR OPEN HOTFIX PRs                      "
+          echo "==============================================================="
+
+          # Get all open PRs to main and filter for hotfix label
+          pr_data=$(gh pr list --base main --json number,title,url,labels | \
+                   jq '[.[] | select(.labels[].name == "hotfix")]')
+          hotfix_count=$(echo "$pr_data" | jq length)
+
+          if [ "$hotfix_count" -gt 0 ]; then
+            echo "❌ Error: Found $hotfix_count open hotfix PR(s) to main"
+            echo ""
+            echo "Open Hotfix PRs:"
+            echo "$pr_data" | jq -r '.[] | "• \(.title) -> \(.url)"'
+            echo ""
+            echo "Cannot proceed with release while hotfix PRs are pending."
+            echo "Next steps:"
+            echo "1. Review and merge all open hotfix PRs listed above"
+            echo "2. Run this workflow again"
+            echo "==============================================================="
+            exit 1
+          fi
+
+          echo "✅ No open hotfix PRs found"
+          echo "==============================================================="
+
+  prod-release-deploy:
+    needs: check-for-open-hotfixes
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.hotfix_release || success() }}
+    environment: prd
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ssh-key: ${{ secrets.AVANTBOT_SSH_KEY }}
+          fetch-depth: 0
+          ref: "to-deploy"
+
+      - name: remove .npmrc
+        run: rm .npmrc yarn.lock package.json
+
+      - name: Release
+        uses: avantfinco/ab_actions/semantic-release@docker-login-sem-release
+        continue-on-error: true
+        with:
+          GITHUB_TOKEN: ${{ secrets.AVANTBOT_OCTOKIT_TOKEN }}
+          GOOGLE_APPLICATION_CREDENTIALS: ""
+          USE_GCP_ARTIFACTORY: false
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PAT: ${{ secrets.DOCKER_PAT }}
+          PLUGINS: |
+            conventional-changelog-conventionalcommits@8.0.0 semantic-release @semantic-release/release-notes-generator @semantic-release/exec @semantic-release/changelog
+
+      - name: update boston deploy yaml
+        uses: avantfinco/ab_actions/ab-ecosystem-releases-yaml-update@master
+        with:
+          SERVICE_NAME: basic
+          SHA_TO_DEPLOY: ${{ github.sha }}
+          AVANTBOT_SSH_KEY: ${{ secrets.AVANTBOT_SSH_KEY }}
+          DIRECTORY: appprd-use2-eks-boston/avant/app/values-boston.yaml
+
+      - name: update dallas deploy yaml
+        uses: avantfinco/ab_actions/ab-ecosystem-releases-yaml-update@master
+        with:
+          SERVICE_NAME: basic
+          SHA_TO_DEPLOY: ${{ github.sha }}
+          AVANTBOT_SSH_KEY: ${{ secrets.AVANTBOT_SSH_KEY }}
+          DIRECTORY: appprd-use2-eks-dallas/avant/app/values-dallas.yaml
+
+      - name: Push deployed tag
+        uses: avantfinco/central_ci/actions/push-deployment-tags@main
+        with:
+          git_sha: ${{ github.sha }}
+          tag: deployed
+          ssh_key: ${{ secrets.AVANTBOT_SSH_KEY }}
+
+      - name: Push hotfix tag
+        if: ${{ inputs.hotfix_release }}
+        uses: avantfinco/central_ci/actions/push-deployment-tags@main
+        with:
+          git_sha: ${{ github.sha }}
+          tag: "hotfix-${{ github.sha }}"
+          ssh_key: ${{ secrets.AVANTBOT_SSH_KEY }}
+
