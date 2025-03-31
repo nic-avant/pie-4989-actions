@@ -31,8 +31,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-        with:
-          ssh-key: ${{ secrets.AVANTBOT_SSH_KEY }}
+        # with:
+        #   ssh-key: ${{ secrets.AVANTBOT_SSH_KEY }}
       - name: Check for open hotfix PRs
         env:
           GH_TOKEN: ${{ github.token }}
@@ -72,47 +72,47 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          ssh-key: ${{ secrets.AVANTBOT_SSH_KEY }}
+          # ssh-key: ${{ secrets.AVANTBOT_SSH_KEY }}
           fetch-depth: 0
           ref: "to-deploy"
 
       - name: remove .npmrc
         run: rm .npmrc yarn.lock package.json
 
-      - name: Release
-        uses: avantfinco/ab_actions/semantic-release@docker-login-sem-release
-        continue-on-error: true
-        with:
-          GITHUB_TOKEN: ${{ secrets.AVANTBOT_OCTOKIT_TOKEN }}
-          GOOGLE_APPLICATION_CREDENTIALS: ""
-          USE_GCP_ARTIFACTORY: false
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PAT: ${{ secrets.DOCKER_PAT }}
-          PLUGINS: |
-            conventional-changelog-conventionalcommits@8.0.0 semantic-release @semantic-release/release-notes-generator @semantic-release/exec @semantic-release/changelog
-
-      - name: update boston deploy yaml
-        uses: avantfinco/ab_actions/ab-ecosystem-releases-yaml-update@master
-        with:
-          SERVICE_NAME: basic
-          SHA_TO_DEPLOY: ${{ github.sha }}
-          AVANTBOT_SSH_KEY: ${{ secrets.AVANTBOT_SSH_KEY }}
-          DIRECTORY: appprd-use2-eks-boston/avant/app/values-boston.yaml
-
-      - name: update dallas deploy yaml
-        uses: avantfinco/ab_actions/ab-ecosystem-releases-yaml-update@master
-        with:
-          SERVICE_NAME: basic
-          SHA_TO_DEPLOY: ${{ github.sha }}
-          AVANTBOT_SSH_KEY: ${{ secrets.AVANTBOT_SSH_KEY }}
-          DIRECTORY: appprd-use2-eks-dallas/avant/app/values-dallas.yaml
+      # - name: Release
+      #   uses: avantfinco/ab_actions/semantic-release@docker-login-sem-release
+      #   continue-on-error: true
+      #   with:
+      #     GITHUB_TOKEN: ${{ secrets.AVANTBOT_OCTOKIT_TOKEN }}
+      #     GOOGLE_APPLICATION_CREDENTIALS: ""
+      #     USE_GCP_ARTIFACTORY: false
+      #     DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      #     DOCKER_PAT: ${{ secrets.DOCKER_PAT }}
+      #     PLUGINS: |
+      #       conventional-changelog-conventionalcommits@8.0.0 semantic-release @semantic-release/release-notes-generator @semantic-release/exec @semantic-release/changelog
+      #
+      # - name: update boston deploy yaml
+      #   uses: avantfinco/ab_actions/ab-ecosystem-releases-yaml-update@master
+      #   with:
+      #     SERVICE_NAME: basic
+      #     SHA_TO_DEPLOY: ${{ github.sha }}
+      #     AVANTBOT_SSH_KEY: ${{ secrets.AVANTBOT_SSH_KEY }}
+      #     DIRECTORY: appprd-use2-eks-boston/avant/app/values-boston.yaml
+      #
+      # - name: update dallas deploy yaml
+      #   uses: avantfinco/ab_actions/ab-ecosystem-releases-yaml-update@master
+      #   with:
+      #     SERVICE_NAME: basic
+      #     SHA_TO_DEPLOY: ${{ github.sha }}
+      #     AVANTBOT_SSH_KEY: ${{ secrets.AVANTBOT_SSH_KEY }}
+      #     DIRECTORY: appprd-use2-eks-dallas/avant/app/values-dallas.yaml
 
       - name: Push deployed tag
         uses: avantfinco/central_ci/actions/push-deployment-tags@main
         with:
           git_sha: ${{ github.sha }}
           tag: deployed
-          ssh_key: ${{ secrets.AVANTBOT_SSH_KEY }}
+          # ssh_key: ${{ secrets.AVANTBOT_SSH_KEY }}
 
       - name: Push hotfix tag
         if: ${{ inputs.hotfix_release }}
@@ -120,5 +120,5 @@ jobs:
         with:
           git_sha: ${{ github.sha }}
           tag: "hotfix-${{ github.sha }}"
-          ssh_key: ${{ secrets.AVANTBOT_SSH_KEY }}
+          # ssh_key: ${{ secrets.AVANTBOT_SSH_KEY }}
 
