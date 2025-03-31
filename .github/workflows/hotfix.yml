@@ -1,4 +1,4 @@
-name: "Release Hotfix"
+name: "hotfix workflow"
 
 on:
   workflow_dispatch:
