@@ -10,16 +10,7 @@ on:
 jobs:
   trigger-release:
     runs-on: ubuntu-latest
-    environment: prd
     steps:
-
-      - name: Check if user can deploy
-        uses: TheModdingInquisition/actions-team-membership@v1.0
-        with:
-          organization: ${{ github.repository_owner }}
-          team: 'avant-basic-eng-approvers'
-          token: ${{ secrets.GITHUB_TOKEN }}
-          exit: true
 
       - name: Checkout
         uses: actions/checkout@v3
@@ -144,11 +135,9 @@ jobs:
           fi
 
       - name: Push deployment tag
-        uses: avantfinco/central_ci/actions/push-deployment-tags@main
-        with:
-          git_sha: ${{ github.event.inputs.git_sha }}
-          tag: to-deploy
-          ssh_key: ${{ secrets.AVANTBOT_SSH_KEY }}
+        run: |
+          git tag -f to-deploy
+          git push origin to-deploy -f
 
       - name: Trigger release workflow
         uses: benc-uk/workflow-dispatch@v1
