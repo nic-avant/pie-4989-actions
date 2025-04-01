@@ -67,7 +67,6 @@ jobs:
           echo "==============================================================="
 
   prod-release-deploy:
-    needs: check-for-open-hotfixes
     runs-on: ubuntu-latest
     if: ${{ !inputs.hotfix_release || success() }}
     steps:
