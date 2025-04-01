@@ -7,6 +7,10 @@ on:
         description: "Commit SHA to release"
         required: true
 
+permissions:
+  contents: write
+  actions: write
+  
 jobs:
   trigger-release:
     runs-on: ubuntu-latest
@@ -15,7 +19,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          ssh-key: ${{ secrets.AVANTBOT_SSH_KEY }}
           fetch-depth: 0
           ref: ${{ github.event.inputs.git_sha }}
 
@@ -140,11 +143,8 @@ jobs:
           git push origin to-deploy -f
 
       - name: Trigger release workflow
-        uses: benc-uk/workflow-dispatch@v1
-        with:
-          workflow: release.yml
-          inputs: |
-            {
-              "hotfix_release": true,
-            }
-      
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Triggering release workflow"
+          gh workflow run release.yml --field hotfix_release=true
