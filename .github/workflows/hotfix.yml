@@ -11,11 +11,9 @@ jobs:
   trigger-release:
     runs-on: ubuntu-latest
     steps:
-
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          ssh-key: ${{ secrets.AVANTBOT_SSH_KEY }}
           fetch-depth: 0
           ref: ${{ github.event.inputs.git_sha }}
 
@@ -33,13 +31,13 @@ jobs:
           echo "==============================================================="
           echo "                    HOTFIX COMMIT CHECK                         "
           echo "==============================================================="
-          
+
           commit_count=$(git rev-list --count HEAD ^${{ steps.deployed.outputs.sha }})
-          
+
           echo "Comparing against deployed SHA: ${{ steps.deployed.outputs.sha }}"
           echo "Number of commits ahead: $commit_count"
           echo ""
-          
+
           if [ "$commit_count" -ne 1 ]; then
             echo "❌ Error: Invalid commit count"
             echo "Found $commit_count commits (expected: 1)"
@@ -66,13 +64,13 @@ jobs:
           echo "✅ Valid commit count: 1 commit ahead of deployed SHA"
           echo "==============================================================="
       - name: Validate Hotfix PR
-        env: 
+        env:
           GH_TOKEN: ${{ github.token }}
         run: |
           echo "==============================================================="
           echo "                    HOTFIX PR VALIDATION                        "
           echo "==============================================================="
-          
+
           # Convert the short SHA (if provided) to a full 40-character SHA
           long_sha=$(git rev-parse "${{ github.event.inputs.git_sha }}") || {
             echo "❌ Error: Invalid commit SHA"
@@ -83,14 +81,14 @@ jobs:
             exit 1
           }
           echo "✅ Valid commit SHA detected: $long_sha"
-          
+
           # Get PR data and validate
           pr_data=$(gh pr list --state open --base main --json number,headRefName,headRefOid)
           heads=$(echo "$pr_data" | jq -r '.[].headRefOid')
-          
+
           echo "Checking for open PR to main branch..."
           echo "Looking for commit: $long_sha"
-          
+
           found_match="false"
           for commit in $heads; do
             if [ "$commit" = "$long_sha" ]; then
@@ -98,7 +96,7 @@ jobs:
               break
             fi
           done
-          
+
           if [ "$found_match" = "false" ]; then
             echo "❌ Error: Missing Pull Request"
             echo "This commit ($long_sha) is not associated with any open PR to main."
@@ -112,7 +110,7 @@ jobs:
           fi
           echo "✅ Found matching commit in open PR to main branch"
           echo "==============================================================="
-          
+
           # Validate that the PR has a label "hotfix"
           if [ "$found_match" = "true" ]; then
             echo "Checking for 'hotfix' label..."
@@ -147,4 +145,4 @@ jobs:
             {
               "hotfix_release": true,
             }
-      
+
