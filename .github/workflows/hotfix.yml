@@ -140,10 +140,48 @@ jobs:
         run: |
           git tag -f to-deploy
           git push origin to-deploy -f
-
-      - name: Trigger release workflow
+      - name: Trigger release workflow and tag
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Triggering release workflow"
-          gh workflow run release.yml --field hotfix_release=true
+          echo "Triggering release workflow..."
+          run_id=$(gh workflow run release.yml --ref main --field hotfix_release=true --json ID -q .ID)
+          
+          echo "Waiting for workflow to complete (ID: $run_id)..."
+          
+          max_attempts=30
+          attempt=0
+          while [ $attempt -lt $max_attempts ]; do
+            status=$(gh run view "$run_id" --json status -q .status)
+            
+            case $status in
+              "completed")
+                conclusion=$(gh run view "$run_id" --json conclusion -q .conclusion)
+                if [ "$conclusion" = "success" ]; then
+                  echo "✅ Release workflow completed successfully"
+                  
+                  git tag -f "hotfix-${{ github.sha }}"
+                  git push origin "hotfix-${{ github.sha }}" -f
+
+                  echo "✅ Created and pushed tag: $tag_name"
+                  exit 0
+                else
+                  echo "❌ Release workflow failed with conclusion: $conclusion"
+                  exit 1
+                fi
+                ;;
+              "in_progress"|"queued"|"pending"|"waiting")
+                echo "Workflow status: $status (attempt $((attempt + 1))/$max_attempts)"
+                ;;
+              *)
+                echo "❌ Unexpected workflow status: $status"
+                exit 1
+                ;;
+            esac
+            
+            attempt=$((attempt + 1))
+            [ $attempt -lt $max_attempts ] && sleep 10
+          done
+          
+          echo "❌ Timeout waiting for workflow completion"
+          exit 1

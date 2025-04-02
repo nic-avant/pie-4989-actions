@@ -93,9 +93,3 @@ jobs:
         run: |
           git tag -f deployed
           git push origin deployed -f
-
-      - name: Push hotfix tag
-        if: ${{ inputs.hotfix_release }}
-        run: |
-          git tag -f "hotfix-${{ github.sha }}"
-          git push origin "hotfix-${{ github.sha }}" -f
