@@ -21,9 +21,6 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.inputs.git_sha }}
 
-      - name: Fetch here
-        run: git config --global advice.detachedHead false && git fetch --all --tags
-
       - name: Get deployed commit from tag
         id: deployed
         run: |
