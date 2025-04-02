@@ -145,14 +145,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           echo "Triggering release workflow..."
-          # Run workflow and capture output
-          workflow_output=$(gh workflow run release.yml --ref main --field hotfix_release=true)
           
-          # Extract run ID from the workflow output using grep and awk
-          run_id=$(echo "$workflow_output" | grep -o "Run ID: [0-9]*" | awk '{print $3}')
+          # Trigger workflow
+          gh workflow run release.yml --ref main --field hotfix_release=true
+          
+          echo "Waiting for workflow to start..."
+          # Wait briefly for workflow to be registered
+          sleep 5
+          
+          # Get the run ID of the most recent workflow
+          run_id=$(gh run list --workflow=release.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+          
+          if [ -z "$run_id" ]; then
+            echo "❌ Failed to get workflow run ID"
+            exit 1
+          fi
           
           echo "Waiting for workflow to complete (ID: $run_id)..."
           
+          # Rest of the while loop remains the same
           max_attempts=30
           attempt=0
           while [ $attempt -lt $max_attempts ]; do
@@ -164,10 +175,10 @@ jobs:
                 if [ "$conclusion" = "success" ]; then
                   echo "✅ Release workflow completed successfully"
                   
-                  git tag -f "hotfix-${{ github.sha }}"
-                  git push origin "hotfix-${{ github.sha }}" -f
-
-                  echo "✅ Created and pushed tag: $tag_name"
+                  git tag -f "hotfix-${{ github.event.inputs.git_sha }}"
+                  git push origin "hotfix-${{ github.event.inputs.git_sha }}" -f
+                  
+                  echo "✅ Created and pushed tag: hotfix-${{ github.event.inputs.git_sha }}"
                   exit 0
                 else
                   echo "❌ Release workflow failed with conclusion: $conclusion"
@@ -188,4 +199,4 @@ jobs:
           done
           
           echo "❌ Timeout waiting for workflow completion"
-          exit 1
+          exit 1  
