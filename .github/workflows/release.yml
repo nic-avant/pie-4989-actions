@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       hotfix_release:
-        description: "Use the hotfix workflow"
+        description: "If deploying a hotfix, then run the hotfix release workflow with desired SHA"
         required: true
         type: boolean
         default: false
@@ -68,7 +68,10 @@ jobs:
 
   prod-release-deploy:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.hotfix_release || success() }}
+    needs: [check-for-open-hotfixes]
+    if: |
+      always() &&
+      (inputs.hotfix_release || needs.check-for-open-hotfixes.result == 'success')
     steps:
       - name: Checkout
         uses: actions/checkout@v3
