@@ -145,18 +145,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           echo "Triggering release workflow..."
-          run_id=$(gh workflow run release.yml --ref main --field hotfix_release=true --json ID -q .ID)
+          # Run workflow and capture output
+          workflow_output=$(gh workflow run release.yml --ref main --field hotfix_release=true)
+          
+          # Extract run ID from the workflow output using grep and awk
+          run_id=$(echo "$workflow_output" | grep -o "Run ID: [0-9]*" | awk '{print $3}')
           
           echo "Waiting for workflow to complete (ID: $run_id)..."
           
           max_attempts=30
           attempt=0
           while [ $attempt -lt $max_attempts ]; do
-            status=$(gh run view "$run_id" --json status -q .status)
+            status=$(gh run view "$run_id" --json status --jq .status)
             
             case $status in
               "completed")
-                conclusion=$(gh run view "$run_id" --json conclusion -q .conclusion)
+                conclusion=$(gh run view "$run_id" --json conclusion --jq .conclusion)
                 if [ "$conclusion" = "success" ]; then
                   echo "✅ Release workflow completed successfully"
                   
