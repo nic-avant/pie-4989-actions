@@ -1,0 +1,26 @@
+name: sandbox workflow
+
+on:
+  # no longer run release on every PR to main, instead just on schedule
+  # push:
+  #     branches:
+  #         main
+  # workflow_dispatch:
+  #     inputs:
+  #         hotfix_release:
+  #             description: "If deploying a hotfix, then run the hotfix release workflow with desired SHA"
+  #             required: true
+  #             type: boolean
+  #             default: false
+  schedule:
+    # every minute
+    - cron: "* * * * *"
+jobs:
+  foo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo
+        run: |
+          echo "==============================================================="
+          echo "                 DANGER WILL ROBINSON                          "
+          echo "==============================================================="
