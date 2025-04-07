@@ -13,8 +13,8 @@ on:
   #             type: boolean
   #             default: false
   schedule:
-    # every minute
-    - cron: "* * * * *"
+    # every 5 minutes
+    - cron: "*/5 * * * *"
 jobs:
   foo:
     runs-on: ubuntu-latest
