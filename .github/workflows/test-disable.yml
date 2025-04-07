@@ -5,7 +5,7 @@ on:
   # push:
   #     branches:
   #         main
-  # workflow_dispatch:
+  workflow_dispatch:
   #     inputs:
   #         hotfix_release:
   #             description: "If deploying a hotfix, then run the hotfix release workflow with desired SHA"
