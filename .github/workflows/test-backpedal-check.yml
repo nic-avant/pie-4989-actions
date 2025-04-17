@@ -1,0 +1,42 @@
+name: Check backpedaling
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_sha:
+        description: Enter the SHA to tag
+        type: string
+        required: true
+      tag:
+        description: Enter the tag to push
+        type: string
+        required: true
+
+jobs:
+  push-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for backpedaling
+        run: |
+          echo "==============================================================="
+          echo "                   BACKPEDALING CHECK                        "
+          echo "==============================================================="
+          git fetch --tags
+          TO_DEPLOY_SHA=$(git rev-parse ${{ github.event.inputs.tag }} )
+          CURRENT_SHA=${{ github.event.inputs.git_sha }}
+
+          echo "🔍 Comparing SHAs:"
+          echo "• Current SHA:     $CURRENT_SHA"
+          echo "• to-deploy SHA:   $TO_DEPLOY_SHA"
+
+          # Check if to-deploy is ahead of current SHA
+          if git merge-base --is-ancestor "$CURRENT_SHA" "$TO_DEPLOY_SHA" && [ "$CURRENT_SHA" != "$TO_DEPLOY_SHA" ]; then
+            echo "❌ to-deploy tag ($TO_DEPLOY_SHA) is ahead of current SHA ($CURRENT_SHA). Skipping tag push."
+            exit 1
+          else
+            echo "✅ Current SHA ($CURRENT_SHA) is ahead of or equal to to-deploy tag ($TO_DEPLOY_SHA). Proceeding with tag push."
+          fi
+      - name: push-tag
+        run: |
+          git tag -f ${{ github.events.inputs.tag }} ${{ github.events.inputs.git_sha }}
+          git push origin refs/tags/${{ github.events.inputs.tag }} -f
